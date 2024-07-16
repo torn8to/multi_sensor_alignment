@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.8)
 project(multi_sensor_alignment)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
 set(PKG_DEPS
-  roscpp
+  rclcpp
   nav_msgs 
   std_msgs
   std_srvs
@@ -19,15 +19,14 @@ set(PKG_DEPS
   pcl_conversions
   cv_bridge
   image_transport
-  dynamic_reconfigure
 )
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS ${PKG_DEPS} cmake_modules
-)
-
+#find_package(catkin REQUIRED COMPONENTS ${PKG_DEPS} cmake_modules) 
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(Boost REQUIRED)
@@ -49,7 +48,6 @@ find_package(OpenCV REQUIRED)
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(include
-  ${catkin_INCLUDE_DIRS} 
   ${PCL_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
@@ -130,46 +128,13 @@ add_definitions(${PCL_DEFINITIONS})
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-generate_dynamic_reconfigure_options(
-  cfg/alignment_publisher.cfg
-  cfg/icp_align_tool.cfg
-)
 
-
-###################################
-## catkin specific configuration ##
-###################################
-## The catkin_package macro generates cmake config files for your package
-## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if your package contains header files
-## LIBRARIES: libraries you create in this project that dependent projects also need
-## CATKIN_DEPENDS: catkin_packages dependent projects also need
-## DEPENDS: system dependencies of this project that dependent projects also need
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS ${PKG_DEPS}
-)
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
 include_directories(
   include
-  ${catkin_INCLUDE_DIRS}
 )
 
-###########
-## Build ##
-###########
-
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/${PROJECT_NAME}_node.cpp)
-
-# Executables
 add_executable(${PROJECT_NAME}_icp_align_tool_node
-  src/icp_align_tool_node.cpp
+  src/ic_align_tool_node.cpp
 )
 
 add_executable(${PROJECT_NAME}_alignment_publisher_node
@@ -280,3 +245,11 @@ add_dependencies(${PROJECT_NAME}_icp_align_tool_lib
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  set(ament_cmake_copyright_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
