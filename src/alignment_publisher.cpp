@@ -38,10 +38,7 @@ static std::string alignment_file_;
 
 boost::recursive_mutex server_mutex_;
 boost::shared_ptr<dynamic_reconfigure::Server<multi_sensor_alignment::alignment_publisherConfig>> server_;
-multi_sensor_alignment::alignment_publisherConfig pose_, initialPose_;
-
-namespace Multi_Sensor_Alignment
-{
+multi_sensor_alignment::
   bool save_params_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp)
   {
 
