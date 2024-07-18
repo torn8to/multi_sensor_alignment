@@ -148,11 +148,6 @@ namespace Multi_Sensor_Alignment
     tf2_ros::Buffer tfBuffer_;
     float wait_for_tf_delay_;
 
-    multi_sensor_alignment::alignment_publisherConfig initialAlignPubConfig_;
-    multi_sensor_alignment::alignment_publisherConfig alignPubConfig_;
-    multi_sensor_alignment::icp_align_toolConfig alignToolConfig_;
-    dynamic_reconfigure::ConfigDescription alignPubDesc_;
-
     bool received_alignToolConfig_;
     bool received_alignPubConfig_;
     bool received_alignPubDesc_;
@@ -160,7 +155,7 @@ namespace Multi_Sensor_Alignment
     std::string input0_topic_, input1_topic_;
     sensor_msgs::PointCloud2 cloud0_, cloud1_;
     rclcpp::Subscription<>:SharedPtr input_sub0_, input_sub1_;
-    #ros::ServiceServer service0_, service1_, service2_, service3_, service4_, service5_, service6_, service7_, service8_;
+    //#ros::ServiceServer service0_, service1_, service2_, service3_, service4_, service5_, service6_, service7_, service8_;
     bool freeze0_, freeze1_, is_output_filtered_;
 
     int buffer_size_;
