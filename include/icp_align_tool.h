@@ -1,11 +1,3 @@
-/** ROS node 
-
-/* 
-
-Copyright (c) 2017
-
-*/
-
 #ifndef ICP_ALIGN_TOOL_H
 #define ICP_ALIGN_TOOL_H
 
@@ -15,15 +7,21 @@ Copyright (c) 2017
 
 #include <mutex>
 
-#include <std_srvs/srv/empty.hpp>
+#include <ros/ros.h>
+#include <ros/console.h>
+#include <std_srvs/Empty.h>
 #include <tf2_ros/transform_listener.h>
-#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
-#include <tf2_eigen/tf2_eigen.hpp>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <rclcpp/rclcpp.hpp>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-#include <sensor_msgs/msg/point_cloud2.h>
-#include <geometry_msgs/msg/transform_stamped.h>
+#include <dynamic_reconfigure/server.h>
+#include <multi_sensor_alignment/icp_align_toolConfig.h>
+#include <dynamic_reconfigure/client.h>
+#include <multi_sensor_alignment/alignment_publisherConfig.h>
+
+#include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/TransformStamped.h>
 
 #include <pcl/io/pcd_io.h>
 
@@ -33,8 +31,8 @@ Copyright (c) 2017
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/PCLPointCloud2.h>
-#include <pcl_ros/point_cloud.hpp>
-#include <pcl_ros/transforms.hpp>
+#include <pcl_ros/point_cloud.h>
+#include <pcl_ros/transforms.h>
 
 #include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
@@ -70,12 +68,13 @@ typedef pcl::PointCloud<PointNormalT> PointCloudWithNormals;
 
 namespace Multi_Sensor_Alignment
 {
-  class Cloud_Alignment: public rclcpp::Node
+  class Cloud_Alignment
   {
   typedef accumulator_set<double, stats<tag::rolling_mean > > window_acc;
   
   public:
-    Cloud_Alignment( int buffer_size);
+	// remove node handles 
+    Cloud_Alignment(const ros::NodeHandle &node_handle, const ros::NodeHandle &private_node_handle, int buffer_size);
 
     /** Destructor */
     ~Cloud_Alignment();
@@ -86,7 +85,7 @@ namespace Multi_Sensor_Alignment
     void onInit();
 
     //! Callback
-    void reconfigure_server_callback(multi_sensor_alignment::icp_align_toolConfig &config, uint32_t level);
+    void reconfigure_server_callback(multi_sensor_alignment::icp_align_toolConfig &config, uint32_t level);//TODO remove can be replaced 
     void align_pubconfig_callback(const multi_sensor_alignment::alignment_publisherConfig& config);
     void align_pubdesc_callback(const dynamic_reconfigure::ConfigDescription& description);
     
@@ -113,69 +112,70 @@ namespace Multi_Sensor_Alignment
     void DownsampleCloud(const pcl::PointCloud<PointT>::Ptr in_cloud, pcl::PointCloud<PointT> &out_cloud, double in_leaf_size);
 
     //service callbacks
-    bool freeze0_callback(std_srvs::Empty::Request &req,std_srvs::Empty::Response &resp);
-    bool freeze1_callback(std_srvs::Empty::Request &req,std_srvs::Empty::Response &resp);
-    bool unfreeze0_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
-    bool unfreeze1_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
-    bool revert_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
-    bool reset_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
-    bool pushtransform_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
-    bool pushYaw_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
-    bool pushRollPitchCorrection_callback(std_srvs::Empty::Request &req,
-            std_srvs::Empty::Response &resp);
+    bool freeze0_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool freeze1_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool unfreeze0_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool unfreeze1_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool revert_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool reset_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool pushtransform_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool pushYaw_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+    bool pushRollPitchCorrection_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
     
     // ROS 
+    ros::NodeHandle nh_;
+    ros::NodeHandle pnh_;
 
     std::string parent_frame_id_, child_frame_id_;
     std::string output_trans_topic_;
     std::string output_cloud0_topic_, output_cloud1_topic_;
     std::string align_server_name_;
-    rclcpp::TimerBase::SharedPtr 
-    rclcpp:Publisher<sensor_msgs::msg:PointCloud2>::SharedPtr output_cloud0_pub_, output_cloud1_pub_;
-    output_trans_pub_; 
+    ros::Publisher output_trans_pub_,  output_cloud0_pub_, output_cloud1_pub_;
 
     tf2_ros::TransformListener tfListener_;
     tf2_ros::Buffer tfBuffer_;
     float wait_for_tf_delay_;
 
-    //bool received_alignToolConfig_;
-    //bool received_alignPubConfig_;
-    //bool received_alignPubDesc_;
+    boost::shared_ptr<dynamic_reconfigure::Server<multi_sensor_alignment::icp_align_toolConfig> > drServer_;
+    boost::shared_ptr<dynamic_reconfigure::Client<multi_sensor_alignment::alignment_publisherConfig> > alignClient_;
+
+    multi_sensor_alignment::alignment_publisherConfig initialAlignPubConfig_;
+    multi_sensor_alignment::alignment_publisherConfig alignPubConfig_;
+    multi_sensor_alignment::icp_align_toolConfig alignToolConfig_;
+    dynamic_reconfigure::ConfigDescription alignPubDesc_;
+
+    bool received_alignToolConfig_;
+    bool received_alignPubConfig_;
+    bool received_alignPubDesc_;
 
     std::string input0_topic_, input1_topic_;
     sensor_msgs::PointCloud2 cloud0_, cloud1_;
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr input_sub0_, input_sub1_;
-    rclcpp::Service<std_srvs::Empty>::SharedPtr service0_, service1_, service2_, service3_, service4_, service5_, service6_, service7_, service8_;
+    ros::Subscriber input_sub0_, input_sub1_;
+    ros::ServiceServer service0_, service1_, service2_, service3_, service4_, service5_, service6_, service7_, service8_;
     bool freeze0_, freeze1_, is_output_filtered_;
 
     int buffer_size_;
 
-    int method_;
-    int    norm_kSearch_;
-    double norm_RadiusSearch_;
+//     int method_;
+//     int    norm_kSearch_;
+//     double norm_RadiusSearch_;
 
-    double epsilon_;
-    int    maxIterations_;
-    double maxCorrespondenceDistance_;
+//     double epsilon_;
+//     int    maxIterations_;
+//     double maxCorrespondenceDistance_;
     
-    double ndt_StepSize_;
-    double ndt_Resolution_;
+//     double ndt_StepSize_;
+//     double ndt_Resolution_;
 
-    double voxelSize_;
-    double filter_i_min_;
-    double filter_i_max_;
-    double filter_x_min_;
-    double filter_x_max_;
-    double filter_y_min_;
-    double filter_y_max_;
-    double filter_z_min_;
-    double filter_z_max_;
+//     double voxelSize_;
+//     double filter_i_min_;
+//     double filter_i_max_;
+//     double filter_x_min_;
+//     double filter_x_max_;
+//     double filter_y_min_;
+//     double filter_y_max_;
+//     double filter_z_min_;
+//     double filter_z_max_;
 
     Eigen::Matrix4f current_guess_;
     geometry_msgs::TransformStamped::Ptr output_;
@@ -188,12 +188,15 @@ namespace Multi_Sensor_Alignment
     window_acc qy_array_;
     window_acc qz_array_;
     double current_qw_, current_qx_, current_qy_, current_qz_;
+
     std::recursive_mutex cloud0_mutex_;
     std::recursive_mutex cloud1_mutex_;
     boost::recursive_mutex drServer_mutex_;
-    rclcpp::TimerBase::SharedPtr pub_timer_;
+    ros::Timer pub_timer_;
     double output_frequency_;
+   
   }; // class Cloud_Alignment
 } // namespace Multi_Sensor_Alignment
 
 #endif  // ICP_ALIGN_TOOL_H
+

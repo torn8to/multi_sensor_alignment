@@ -1,17 +1,16 @@
-
 #include "icp_align_tool/icp_align_tool.hpp"
 /*
-  * TODO port parameters over from ros2
-  *         [ ] onInit
-  *         [ ] onInit 
-  * TODO remove dynamic reconfigure services
+  * TODO port parameters over to ros2 
+  * TODO remove dynamic reconficgure functionality
   * TODO add alignment publisher service
-  * TODO replace all logging statemets with rclcpp logging
+  * TODO 
   *
 */
 namespace Multi_Sensor_Alignment
 {
-  Cloud_Alignment::Cloud_Alignment(int buffer_size):node// Initialization list
+  Cloud_Alignment::Cloud_Alignment(int buffer_size)
+
+  // Initialization list
   freeze0_(0),
   freeze1_(0),
   current_guess_(Eigen::Matrix4f::Identity()),
@@ -33,7 +32,6 @@ namespace Multi_Sensor_Alignment
   {
     this->onInit();
   }
-
   Cloud_Alignment::~Cloud_Alignment()
   {
     // pass
@@ -42,176 +40,112 @@ namespace Multi_Sensor_Alignment
   void Cloud_Alignment::onInit()
   {
   //Subscribe to Dynamic Reconfigure on the alignment publisher node, AlignPubConfig
-    //ROS_INFO_STREAM_NAMED(node_name, "alignment_server set to " << align_server_name_);   
-    RCL_CPP_INFO_STREAM(get_logger(), "alignment_server set to " << align_server_name_);   
-    //alignClient_.reset(new dynamic_reconfigure::Client<multi_sensor_alignment::alignment_publisherConfig>(align_server_name_));
-    //alignClient_->setConfigurationCallback(boost::bind(&Cloud_Alignment::align_pubconfig_callback, this, _1));
-    //alignClient_->setDescriptionCallback(boost::bind(&Cloud_Alignment::align_pubdesc_callback, this, _1));
+      ROS_INFO_STREAM_NAMED(node_name, "alignment_server set to " << align_server_name_);   
+    alignClient_.reset(new dynamic_reconfigure::Client<multi_sensor_alignment::alignment_publisherConfig>(align_server_name_));
+    alignClient_->setConfigurationCallback(boost::bind(&Cloud_Alignment::align_pubconfig_callback, this, _1));
+    alignClient_->setDescriptionCallback(boost::bind(&Cloud_Alignment::align_pubdesc_callback, this, _1));
     //TODO get parameters 
     //Wait 60 seconds for the alignment publisher nodes dynamic param server to respond
-    /*int count = 0, maxcount = 60;
+    int count = 0, maxcount = 60;
     while((count < maxcount && (!received_alignPubConfig_ || !received_alignPubDesc_)) && align_server_name_ != "")
     {
       ros::Duration(1.0).sleep();
-      //ROS_INFO_STREAM_NAMED(get_logger(), "Waiting on dynamic parameters from align_publisher. " << (maxcount-count) << " sec before giving up.");
-      RCL_CPP_INFO_STREAM(get_logger(), "Waiting on dynamic parameters from align_publisher. " << (maxcount-count) << " sec before giving up.");
+      ROS_INFO_STREAM_NAMED(node_name, "Waiting on dynamic parameters from align_publisher. " << (maxcount-count) << " sec before giving up.");
       ros::spinOnce();
-      coun
+      count++;
     }
-  */
 
   // ROS Parameters
-    this->declare_parameter("parent_frame","");
-    parent_frame_id_ = this->get_parameter(parent_frame).as_string();
-    //pnh_.param<std::string>("parent_frame", parent_frame_id_, "");
-      RCL_CPP_INFO_STREAM(get_logger(), "parent_frame set to " << parent_frame_id_);
-    this->declare_parmeter("child_frame");
-    child_frame_id_ = this->get_parameter("child_frame","").as_string();
-    //pnh_.param<std::string>("child_frame", child_frame_id_, "");
-      RCL_CPP_INFO_STREAM(get_logger(), "child_frame set to " << child_frame_id_);
-      this-> declare_parameter("output_frequency", 0.1)
-      output_frequency_ = this->get_parameter("child_frame").as_string();
-      RCL_CPP_INFO_STREAM(get_logger(), "output_frequency set to " << output_frequency_);     
+    pnh_.param<std::string>("parent_frame", parent_frame_id_, "");
+      ROS_INFO_STREAM_NAMED(node_name, "parent_frame set to " << parent_frame_id_);
+    pnh_.param<std::string>("child_frame", child_frame_id_, "");
+      ROS_INFO_STREAM_NAMED(node_name, "child_frame set to " << child_frame_id_);
+
+    pnh_.param("output_frequency", output_frequency_, 10.0);
+      ROS_INFO_STREAM_NAMED(node_name, "output_frequency set to " << output_frequency_);     
           
 
-    if(!received_alignPubConfig_){
-      RCL_CPP_INFO_STREAMN(get_logger(), "Proceeding without alignment publisher.");
+    if(!received_alignPubConfig_)
+    {
+      ROS_INFO_STREAM_NAMED(node_name, "Proceeding without alignment publisher.");
     }
 
-      RCL_CPP_INFO_STREAM(get_logger(), "x set to " << alignPubConfig_.x);
-      RCL_CPP_INFO_STREAM(get_logger(), "y set to " << alignPubConfig_.y);
-      RCL_CPP_INFO_STREAM(get_logger(), "z set to " << alignPubConfig_.z);
-      RCL_CPP_INFO_STREAM(get_logger(), "roll set to " << alignPubConfig_.roll);
-      RCL_CPP_INFO_STREAM(get_logger(), "pitch set to " << alignPubConfig_.pitch);
-      RCL_CPP_INFO_STREAM(get_logger(), "yaw set to " << alignPubConfig_.yaw);
-    
+      ROS_INFO_STREAM_NAMED(node_name, "x set to " << alignPubConfig_.x);
+      ROS_INFO_STREAM_NAMED(node_name, "y set to " << alignPubConfig_.y);
+      ROS_INFO_STREAM_NAMED(node_name, "z set to " << alignPubConfig_.z);
+      ROS_INFO_STREAM_NAMED(node_name, "roll set to " << alignPubConfig_.roll);
+      ROS_INFO_STREAM_NAMED(node_name, "pitch set to " << alignPubConfig_.pitch);
+      ROS_INFO_STREAM_NAMED(node_name, "yaw set to " << alignPubConfig_.yaw);
 
-    this->declare_parameter("input_cloud0","input0");
-    input_cloud0_topic_ = this->get_parameter("input_cloud0").as_string();
-    //pnh_.param<std::string>("input_cloud0", input0_topic_, "input0");
-    RCL_CPP_INFO_STREAM(get_logger(), "input_cloud0 topic set to " << input0_topic_);
-    this->declare_parameter("input_cloud1","input1");
-    input_cloud1_topic_ = this->get_parameter("input_cloud1").as_string();
-    //pnh_.param<std::string>("input_cloud0", input0_topic_, "input0");
-    //pnh_.param<std::string>("input_cloud1", input1_topic_, "input1");
-    RCL_CPP_INFO_STREAM(get_logger(),"input_cloud1 topic set to " << input1_topic_);
-    this->declare_parameter("output_cloud0","output0");
-    output_cloud0_topic_ = this->get_parameter("output_cloud0").as_string();
-    //pnh_.param<std::string>("output_cloud0", output_cloud0_topic_, "cloud0");
-    RCL_CPP_INFO_STREAM(get_logger(), "output_cloud0 topic set to " << output_cloud0_topic_);
-    this->declare_parameter("output_cloud1","cloud1");
-    output_cloud1_topic_ = this->get_parameter("output_cloud1").as_string();
-    RCL_CPP_INFO_STREAM(get_logger(), "output_cloud1 topic set to " << output_cloud1_topic_);
-    this->declare_parameter("is_output_filtered",true);
-    output_ = this->get_parameter("is_output_filtered").as_bool();
-    //pnh_.param<std::string>("output", output_trans_topic_, "output");
-    RCL_CPP_INFO_STREAM(get_logger(), "output topic set to " << output_trans_topic_);
-    this->declare_parameter("output","output");
-    output_cloud1_topic_ = this->get_parameter("output").as_string();
-   //pnh_.param("is_output_filtered", is_output_filtered_, false);
-    RCL_CPP_INFO_STREAM(get_logger(), "is_output_filtered set to " << is_output_filtered_);
-    //TODO alter these to fit types  
-    this->declare_parameter("voxelSize",0.05);
-    voxelSize =  this->get_parameter("voxelSize").as_double();
-    RCL_CPP_INFO_STREAM(get_logger(), "voxelSize set to " << voxelSize);
-    this->declare_parameter("filter/i_min",0.05);
-    filter_i_min_ =  this->get_parameter("filter/i_min").as_double();
-    //pnh_.param("filter/i_min", alignToolConfig_.i_min, alignToolConfig_.i_min);
-    RCL_CPP_INFO_STREAM(get_logger(), "filter min i set to " << fliter_i_min_);   
-    this->declare_parameter("filter/i_max",0.0);
-    filter_i_max_ =  this->get_parameter("filter/i_max").as_double();
-    //pnh_.param("filter/i_max", alignToolConfig_.i_max, alignToolConfig_.i_max);
-    RCL_CPP_INFO_STREAM(get_logger(), "filter max i set to " << alignToolConfig_.i_max);  
-    this->declare_parameter("filter/x_min",0.0);
-    filter_x_min_ =  this->get_parameter("filter/x_min").as_double();
-    //pnh_.param("filter/x_min", alignToolConfig_.x_min, alignToolConfig_.x_min);
-    RCL_CPP_INFO_STREAM(get_logger(), "filter min x set to " << filter_x_min_);   
-    this->declare_parameter("filter/x_max",1000.0);
-    filter_x_max_ =  this->get_parameter("filter/x_max").as_double();
-    //pnh_.param("filter/x_max", alignToolConfig_.x_max, alignToolConfig_.x_max);
-    RCL_CPP_INFO_STREAM(get_logger(), "filter max x set to " << filter_x_max_);   
-    //pnh_.param("filter/y_min", alignToolConfig_.y_min, alignToolConfig_.y_min);
-    this->declare_parameter("filter/y_min",1000.0);
-    filter_x_max_ =  this->get_parameter("filter/y_min").as_double();
-    RCL_CPP_INFO_STREAM(get_logger(), "filter min y set to " << filter_y_min_);   
-    //pnh_.param("filter/y_max", alignToolConfig_.y_max, alignToolConfig_.y_max);
-    this->declare_parameter("filter/y_max",1000.0);
-    filter_x_max_ =  this->get_parameter("filter/y_max").as_double();
-    RCL_CPP_INFO_STREAM(get_logger(), "filter max y set to " << filter_y_max_);   
-    //pnh_.param("filter/z_min", alignToolConfig_.z_min, alignToolConfig_.z_min);
-    this->declare_parameter("filter/z_min",1000.0);
-    filter_z_min_ =  this->get_parameter("filter/z_min").as_double();
-    RCL_CPP_INFO_STREAM(get_logger(), "filter min z set to " << alignToolConfig_.z_min);   
-    //pnh_.param("filter/z_max", alignToolConfig_.z_max, alignToolConfig_.z_max);
-    this->declare_parameter("filter/z_max",1000.0);
-    filter_z_max_ =  this->get_parameter("filter/z_max").as_double();
-    RCL_CPP_INFO_STREAM(get_logger(), "filter max z set to " << alignToolConfig_.z_max);
-    this->declare_parameter("method",1)
-    method_ =  this->get_parameter("method").as_int();
-    //pnh_.param("method", alignToolConfig_.Method, 1);
-      RCL_CPP_INFO_STREAM(get_logger(), "method set to " << method_);
-    this->declare_parameter("epsilon",1)
-    method_ =  this->get_parameter("epsilon").as_int();
-    //pnh_.param("epsilon", alignToolConfig_.Epsilon, alignToolConfig_.Epsilon);
-    this->declare_parameter("maxIterations",100)
-    method_ =  this->get_parameter("maxIterations").as_int();
-    //pnh_.param("maxIterations", alignToolConfig_.MaxIterations, alignToolConfig_.MaxIterations);
-      RCL_CPP_INFO_STREAM(get_logger(), "maxIterations set to " << alignToolConfig_.MaxIterations);
-    this->declare_parameter("maxCorrespondenceDistance",0.1);
-    maxCorrespondenceDistance_ = this->get_parameter("maxCorrespondenceDistance").as_double();
-    //pnh_.param("maxCorrespondenceDistance", alignToolConfig_.MaxCorrespondenceDistance, alignToolConfig_.MaxCorrespondenceDistance);
-      RCL_CPP_INFO_STREAM(get_logger(), "maxCorrespondenceDistance set to " << alignToolConfig_.MaxCorrespondenceDistance);
-    this->declare_parameter("norm/KSearch",30);
-    norm_kSearch_ = this->get_parameter("norm/KSearch").as_int();
-   // pnh_.param("norm/KSearch", alignToolConfig_.KSearch, alignToolConfig_.KSearch);
-    RCL_CPP_INFO_STREAM(get_logger(), "KSearch set to " << norm_kSearch_);
-    this->declare_parameter("norm/RadiusSearch",30);
-    norm_RadiusSearch_ = this->get_parameter("norm/RadiusSearch").as_int();
-    //pnh_.param("norm/RadiusSearch", alignToolConfig_.RadiusSearch, alignToolConfig_.RadiusSearch);
-    RCL_CPP_INFO_STREAM(get_logger(), "RadiusSearch set to " << norm_RadiusSearch_);      
-    this->declare_parameter("ndt/StepSize",0.01);
-    ndt_StepSize_ = this->get_parameter("ndt/StepSize").as_double(). 
-    //pnh_.param("ndt/StepSize", alignToolConfig_.StepSize, alignToolConfig_.StepSize);
-    RCL_CPP_INFO_STREAM(get_logger(), "StepSize set to " << ndt_StepSize);
+    pnh_.param<std::string>("input_cloud0", input0_topic_, "input0");
+      ROS_INFO_STREAM_NAMED(node_name, "input_cloud0 topic set to " << input0_topic_);
+    pnh_.param<std::string>("input_cloud1", input1_topic_, "input1");
+      ROS_INFO_STREAM_NAMED(node_name, "input_cloud1 topic set to " << input1_topic_);
+    pnh_.param<std::string>("output_cloud0", output_cloud0_topic_, "cloud0");
+      ROS_INFO_STREAM_NAMED(node_name, "output_cloud0 topic set to " << output_cloud0_topic_);
+    pnh_.param<std::string>("output_cloud1", output_cloud1_topic_, "cloud1");
+      ROS_INFO_STREAM_NAMED(node_name, "output_cloud1 topic set to " << output_cloud1_topic_);
+    pnh_.param<std::string>("output", output_trans_topic_, "output");
+      ROS_INFO_STREAM_NAMED(node_name, "output topic set to " << output_trans_topic_);
+    pnh_.param("is_output_filtered", is_output_filtered_, false);
+      ROS_INFO_STREAM_NAMED(node_name, "is_output_filtered set to " << is_output_filtered_);
+      
+    pnh_.param("voxelSize", alignToolConfig_.VoxelSize, alignToolConfig_.VoxelSize);
+      ROS_INFO_STREAM_NAMED(node_name, "voxelSize set to " << alignToolConfig_.VoxelSize);
 
-    this->declare_parameter("ndt/Resolution",1.0);
-    ndt_Resoultion_ = this->get_parameter("ndt/Resolution").as_double(). 
-    //pnh_.param("ndt/Resolution", alignToolConfig_.Resolution, alignToolConfig_.Resolution);
-    RCL_CPP_INFO_STREAM(get_logger(), "Resolution set to " << ndt_Resolution_);   
+    pnh_.param("filter/i_min", alignToolConfig_.i_min, alignToolConfig_.i_min);
+      ROS_INFO_STREAM_NAMED(node_name, "filter min i set to " << alignToolConfig_.i_min);   
+    pnh_.param("filter/i_max", alignToolConfig_.i_max, alignToolConfig_.i_max);
+      ROS_INFO_STREAM_NAMED(node_name, "filter max i set to " << alignToolConfig_.i_max);  
+    pnh_.param("filter/x_min", alignToolConfig_.x_min, alignToolConfig_.x_min);
+      ROS_INFO_STREAM_NAMED(node_name, "filter min x set to " << alignToolConfig_.x_min);   
+    pnh_.param("filter/x_max", alignToolConfig_.x_max, alignToolConfig_.x_max);
+      ROS_INFO_STREAM_NAMED(node_name, "filter max x set to " << alignToolConfig_.x_max);   
+    pnh_.param("filter/y_min", alignToolConfig_.y_min, alignToolConfig_.y_min);
+      ROS_INFO_STREAM_NAMED(node_name, "filter min y set to " << alignToolConfig_.y_min);   
+    pnh_.param("filter/y_max", alignToolConfig_.y_max, alignToolConfig_.y_max);
+      ROS_INFO_STREAM_NAMED(node_name, "filter max y set to " << alignToolConfig_.y_max);   
+    pnh_.param("filter/z_min", alignToolConfig_.z_min, alignToolConfig_.z_min);
+      ROS_INFO_STREAM_NAMED(node_name, "filter min z set to " << alignToolConfig_.z_min);   
+    pnh_.param("filter/z_max", alignToolConfig_.z_max, alignToolConfig_.z_max);
+      ROS_INFO_STREAM_NAMED(node_name, "filter max z set to " << alignToolConfig_.z_max);
+
+    pnh_.param("method", alignToolConfig_.Method, 1);
+      ROS_INFO_STREAM_NAMED(node_name, "method set to " << alignToolConfig_.Method);
+    pnh_.param("epsilon", alignToolConfig_.Epsilon, alignToolConfig_.Epsilon);
+      ROS_INFO_STREAM_NAMED(node_name, "epsilon set to " << alignToolConfig_.Epsilon);
+    pnh_.param("maxIterations", alignToolConfig_.MaxIterations, alignToolConfig_.MaxIterations);
+      ROS_INFO_STREAM_NAMED(node_name, "maxIterations set to " << alignToolConfig_.MaxIterations);
+    pnh_.param("maxCorrespondenceDistance", alignToolConfig_.MaxCorrespondenceDistance, alignToolConfig_.MaxCorrespondenceDistance);
+      ROS_INFO_STREAM_NAMED(node_name, "maxCorrespondenceDistance set to " << alignToolConfig_.MaxCorrespondenceDistance);
+
+    pnh_.param("norm/KSearch", alignToolConfig_.KSearch, alignToolConfig_.KSearch);
+      ROS_INFO_STREAM_NAMED(node_name, "KSearch set to " << alignToolConfig_.KSearch);
+    pnh_.param("norm/RadiusSearch", alignToolConfig_.RadiusSearch, alignToolConfig_.RadiusSearch);
+      ROS_INFO_STREAM_NAMED(node_name, "RadiusSearch set to " << alignToolConfig_.RadiusSearch);      
     
+    pnh_.param("ndt/StepSize", alignToolConfig_.StepSize, alignToolConfig_.StepSize);
+      ROS_INFO_STREAM_NAMED(node_name, "StepSize set to " << alignToolConfig_.StepSize);     
+    pnh_.param("ndt/Resolution", alignToolConfig_.Resolution, alignToolConfig_.Resolution);
+      ROS_INFO_STREAM_NAMED(node_name, "Resolution set to " << alignToolConfig_.Resolution);   
+    
+    drServer_->updateConfig(alignToolConfig_);
 
   // ROS publishers
-  // TODO fill in data on publishers
-    output_trans_pub_ = this->createPublisher<geometry_msgs::msg::TransformStamped>(output_trans_topic_,10);
-    output_cloud0_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(output_cloud0_topic_,10);
-    output_cloud1_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(output_cloud1_topic_,10);
-    pub_timer_ = nh_.create_wall_timer(1, boost::bind(& publish_callback, this));
-    /*
     output_trans_pub_  = nh_.advertise<geometry_msgs::TransformStamped>(output_trans_topic_,100);
     output_cloud0_pub_ = nh_.advertise<sensor_msgs::PointCloud2>(output_cloud0_topic_,10);
     output_cloud1_pub_ = nh_.advertise<sensor_msgs::PointCloud2>(output_cloud1_topic_,10);
     pub_timer_ = nh_.createTimer(ros::Duration(1.0/output_frequency_), boost::bind(& Cloud_Alignment::publish_callback, this, _1));
-    */
-  // ROS subscribers
-  input_sub0_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input0_topic_,&Cloud_Alignment::input0_callback);
-  input_sub1_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input1_topic_,&cloud_Alignment::input1_callback);
 
-    /*
+  // ROS subscribers
     input_sub0_ = nh_.subscribe(input0_topic_, 100, &Cloud_Alignment::input0_callback, this);
     input_sub1_ = nh_.subscribe(input1_topic_, 100, &Cloud_Alignment::input1_callback, this);
-    */
-  // ROS Service
-    /*
+
+  // ROS Services
     service0_ = pnh_.advertiseService("freeze_cloud0", &Cloud_Alignment::freeze0_callback, this);
     service1_ = pnh_.advertiseService("freeze_cloud1", &Cloud_Alignment::freeze1_callback, this);
     service2_ = pnh_.advertiseService("unfreeze_cloud0", &Cloud_Alignment::unfreeze0_callback, this);
     service3_ = pnh_.advertiseService("unfreeze_cloud1", &Cloud_Alignment::unfreeze1_callback, this);
-    */
-    this->createService("freeze_cloud0",&Cloud_Alignment::freeze0_callback);
-    this->createService("freeze_cloud1",&Cloud_Alignment::freeze1_callback);
-    this->createService("unfreeze_cloud0",&Cloud_Alignment::freeze0_callback);
-    this->createService("unfreeze_cloud1",&Cloud_Alignment::freeze1_callback);
-
     if(received_alignPubConfig_)
     {
       service4_ = pnh_.advertiseService("revert", &Cloud_Alignment::revert_callback, this);
@@ -223,13 +157,45 @@ namespace Multi_Sensor_Alignment
 
   // Reset the guess transform for good measure
     Cloud_Alignment::revert();
+
+    ROS_INFO_STREAM_NAMED(node_name, node_name.c_str() << " initialized!");
   }
 
+  void Cloud_Alignment::reconfigure_server_callback(multi_sensor_alignment::icp_align_toolConfig &config, uint32_t level) 
+  {
+    
+    ROS_INFO("Reconfigure Request: %f %f %f %f %f %f %f %f %f %d %f %d %f %d %f %f %f", 
+            config.i_min,
+            config.i_max, 
+            config.x_min,
+            config.x_max, 
+            config.y_min,
+            config.y_max, 
+            config.z_min,
+            config.z_max, 
+            config.VoxelSize, 
+
+            config.Method,
+            config.Epsilon, 
+            config.MaxIterations, 
+            config.MaxCorrespondenceDistance,
+
+            config.KSearch,
+            config.RadiusSearch,
+            
+            config.StepSize,
+            config.Resolution);
+
+    alignToolConfig_ = config;
+    received_alignToolConfig_ = true;
+
+    Cloud_Alignment::revert();
+  }
 
   void Cloud_Alignment::align_pubconfig_callback(const multi_sensor_alignment::alignment_publisherConfig& config) 
   {
-    RCL_CPP_INFO("Received configuration from alignment publisher");
-    RCL_CPP_INFO("%f %f %f %f %f %f", 
+    ROS_INFO("Received configuration from alignment publisher");
+    ROS_INFO("%f %f %f %f %f %f", 
             config.x, config.y, config.z, config.roll, config.pitch, config.yaw);
 
     if (!received_alignPubConfig_) 
@@ -240,12 +206,10 @@ namespace Multi_Sensor_Alignment
 
     Cloud_Alignment::revert();
   }
-/*
-TODO change this to a
-*/
+
   void Cloud_Alignment::align_pubdesc_callback(const dynamic_reconfigure::ConfigDescription& description) 
   {
-    RCL_CPP_INFO("Received description from alignment publisher");
+    ROS_INFO("Received description from alignment publisher");
 
     alignPubDesc_ = description;
     received_alignPubDesc_ = true;
@@ -256,7 +220,7 @@ TODO change this to a
     if(!received_alignPubConfig_)
     {
       // ROS_WARN_STREAM_NAMED(node_name, "Alignment Server isn't connected.");
-      RCL_CPP_INFO_STREAM(node_name, "Alignment Server isn't connected.");
+      ROS_INFO_STREAM_NAMED(node_name, "Alignment Server isn't connected.");
       return true;
     }
 
@@ -282,7 +246,7 @@ TODO change this to a
     if(!received_alignPubConfig_)
     {
       // ROS_WARN_STREAM_NAMED(node_name, "Alignment Server isn't connected.");
-      RCL_CPP_INFO_STREAM(node_name, "Alignment Server isn't connected.");
+      ROS_INFO_STREAM_NAMED(node_name, "Alignment Server isn't connected.");
       return true;
     }
 
@@ -302,7 +266,7 @@ TODO change this to a
     if(!received_alignPubConfig_)
     {
       // ROS_WARN_STREAM_NAMED(node_name, "Alignment Server isn't connected.");
-      ROS_INFO_STREAM_NAMkD(node_name, "Alignment Server isn't connected.");
+      ROS_INFO_STREAM_NAMED(node_name, "Alignment Server isn't connected.");
       return true;
     }
 
@@ -530,7 +494,7 @@ TODO change this to a
         //Get Results
         reg.align (*reg_result, current_guess_);
 
-        RCL_CPP_INFO_STREAM(get_logger(), "ICP with Normals converged:" << reg.hasConverged ()
+        ROS_INFO_STREAM_NAMED(node_name, "ICP with Normals converged:" << reg.hasConverged ()
                 << " score: " << reg.getFitnessScore () << " epsilon:" << reg.getTransformationEpsilon());
         
         if(reg.hasConverged() ) current_guess_ = reg.getFinalTransformation();
@@ -590,6 +554,7 @@ TODO change this to a
     gm_diff.header = pcl_conversions::fromPCL(cloud1->header);
     gm_diff.header.frame_id = child_frame;
     gm_diff.child_frame_id = child_frame;
+
     tf2::Vector3 diff_vector(diff.getOrigin());
     tf2::Matrix3x3 diff_matrix(diff.getRotation());
     double diff_x, diff_y, diff_z, diff_roll, diff_pitch, diff_yaw;
@@ -601,16 +566,16 @@ TODO change this to a
     //writeout values
     if(freeze0_) 
     {
-      RCL_CPP_INFO_STREAM(get_logger(), "input0 frozen");
+      ROS_INFO_STREAM_NAMED(node_name, "input0 frozen");
     }
     if(freeze1_) 
     {
-      RCL_CPP_INFO_STREAM(get_logger(), "input1 frozen");
+      ROS_INFO_STREAM_NAMED(node_name, "input1 frozen");
     }
 
-    RCL_CPP_INFO_STREAM(get_logger(), "X:     " << output_->transform.translation.x << " m" << ", diff: " << diff_x << " m");
-    RCL_CPP_INFO_STREAM(get_logger(), "Y:     " << output_->transform.translation.y << " m" << ", diff: " << diff_y << " m");
-    RCL_CPP_INFO_STREAM(get_logger(), "Z:     " << output_->transform.translation.z << " m" << ", diff: " << diff_z << " m");
+    ROS_INFO_STREAM_NAMED(node_name, "X:     " << output_->transform.translation.x << " m" << ", diff: " << diff_x << " m");
+    ROS_INFO_STREAM_NAMED(node_name, "Y:     " << output_->transform.translation.y << " m" << ", diff: " << diff_y << " m");
+    ROS_INFO_STREAM_NAMED(node_name, "Z:     " << output_->transform.translation.z << " m" << ", diff: " << diff_z << " m");
 
     tf2::Quaternion q(
           output_->transform.rotation.x,
@@ -620,16 +585,18 @@ TODO change this to a
     tf2::Matrix3x3 m(q);
     double roll,pitch,yaw;
     m.getRPY(roll,pitch,yaw);
-    RCL_CPP_INFO_STREAM(get_logger(), "Roll:  " << roll <<  " rad, " << (roll/PI*180)  << " deg" << ", diff: " << diff_roll << " rad");
-    RCL_CPP_INFO_STREAM(get_logger(), "pitch: " << pitch << " rad, " << (pitch/PI*180) << " deg" << ", diff: " << diff_pitch << " rad");
-    RCL_CPP_INFO_STREAM(get_logger(), "Yaw:   " << yaw <<   " rad, " << (yaw/PI*180)   << " deg" << ", diff: " << diff_yaw << " rad");
+    ROS_INFO_STREAM_NAMED(node_name, "Roll:  " << roll <<  " rad, " << (roll/PI*180)  << " deg" << ", diff: " << diff_roll << " rad");
+    ROS_INFO_STREAM_NAMED(node_name, "pitch: " << pitch << " rad, " << (pitch/PI*180) << " deg" << ", diff: " << diff_pitch << " rad");
+    ROS_INFO_STREAM_NAMED(node_name, "Yaw:   " << yaw <<   " rad, " << (yaw/PI*180)   << " deg" << ", diff: " << diff_yaw << " rad");
 
     // Create output msgs
     geometry_msgs::TransformStamped::Ptr output(output_);
     sensor_msgs::PointCloud2::Ptr output_msg0(new sensor_msgs::PointCloud2);
     sensor_msgs::PointCloud2::Ptr output_msg1(new sensor_msgs::PointCloud2);
-    sensor_msgs::PointCloud2 p_msg1; pcl::toROSMsg(*output_cloud0, *output_msg0);
+    sensor_msgs::PointCloud2 p_msg1;
+    pcl::toROSMsg(*output_cloud0, *output_msg0);
     pcl::toROSMsg(*output_cloud1, *output_msg1);
+
     //first convert output_msg1 to parent_frame then apply output transform
     // geometry_msgs::TransformStamped pTransform = tfBuffer_.lookupTransform(parent_frame, output_msg1->header.frame_id, output_msg1->header.stamp);
     // tf2::doTransform(*output_msg1, *output_msg1, pTransform);
@@ -664,7 +631,7 @@ TODO change this to a
         cloud0_ = cloud_out;
         }
       catch (tf2::TransformException ex){
-        RCL_CPP_WARN("%s",ex.what());
+        ROS_WARN("%s",ex.what());
         return;
       }
     }
@@ -691,7 +658,7 @@ TODO change this to a
         cloud1_ = cloud_out;
       }
       catch (tf2::TransformException ex){
-        RCLCPP_WARN("%s",ex.what());
+        ROS_WARN("%s",ex.what());
         return;
       }
     }
@@ -717,7 +684,7 @@ TODO change this to a
   bool Cloud_Alignment::unfreeze0_callback(std_srvs::Empty::Request &req,
             std_srvs::Empty::Response &resp)
   {
-    RCL_CPP_INFO_STREAM(get_logger(), "input0 unfrozen");
+    ROS_INFO_STREAM_NAMED(node_name, "input0 unfrozen");
     freeze0_ = false;	  
 
     return true;
@@ -726,7 +693,7 @@ TODO change this to a
   bool Cloud_Alignment::unfreeze1_callback(std_srvs::Empty::Request &req,
             std_srvs::Empty::Response &resp)
   {
-    RCL_CPP_INFO_STREAM(get_logger(), "input1 unfrozen");
+    ROS_INFO_STREAM_NAMED(node_name, "input1 unfrozen");
     freeze1_ = false;	  
     
     return true;
@@ -756,7 +723,7 @@ TODO change this to a
     qw_array_ = window_acc(tag::rolling_window::window_size = buffer_size_);
     current_qx_ = 0; current_qy_ = 0; current_qz_ = 0; current_qw_ = 0; 
     
-    RCL_CPP_INFO_STREAM(node_name, "Guess transform reverted");
+    ROS_INFO_STREAM_NAMED(node_name, "Guess transform reverted");
 
     return true;
   }

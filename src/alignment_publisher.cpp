@@ -14,7 +14,7 @@
  * limitations under the License.
  *
  */
-#include <rclcpp/rclcpp.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include <tf2/transform_datatypes.h>
 #include <tf2/LinearMath/Transform.h>

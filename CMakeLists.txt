@@ -27,10 +27,16 @@ set(PKG_DEPS
 #find_package(catkin REQUIRED COMPONENTS ${PKG_DEPS} cmake_modules) 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
 find_package(Boost REQUIRED)
-
+find_package(std_srvs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(pcl_ros REQUIRED)
 find_package(OpenMP)
 
 find_package(PCL REQUIRED)
@@ -45,6 +51,7 @@ find_package(OpenCV REQUIRED)
 #endif()
 
 
+
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(include
@@ -53,8 +60,24 @@ include_directories(include
   ${OpenCV_INCLUDE_DIRS}
   ${Eigen3_INCLUDE_DIRS}                    
 )
-
 add_definitions(${PCL_DEFINITIONS})
+
+add_library(${PROJECT_NAME}_icp_align_tool_lib SHARED
+  src/icp_align_tool_class.cpp
+  include/icp_align_tool/icp_align_tool.hpp
+)
+ament_target_dependencies(${PROJECT_NAME}_icp_align_tool_lib 
+"rclcpp"
+"std_srvs"
+"sensor_msgs"
+"geometry_msgs"
+"tf2_ros"
+"tf2_sensor_msgs"
+"tf2_eigen"
+"tf2_geometry_msgs"
+"pcl_conversions"
+"pcl_ros"
+)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -129,6 +152,7 @@ add_definitions(${PCL_DEFINITIONS})
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
 
+#[[
 include_directories(
   include
 )
@@ -151,10 +175,7 @@ set_target_properties(${PROJECT_NAME}_alignment_publisher_node PROPERTIES OUTPUT
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME} src/${PROJECT_NAME}/${PROJECT_NAME}.cpp )
-add_library(${PROJECT_NAME}_icp_align_tool_lib SHARED
-  src/icp_align_tool_class.cpp
-  include/icp_align_tool/icp_align_tool.h
-)
+
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(${PROJECT_NAME}_node
@@ -170,11 +191,12 @@ target_link_libraries(${PROJECT_NAME}_alignment_publisher_node
   ${catkin_LIBRARIES}
   yaml-cpp
 )
-
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+#[[
 add_dependencies(${PROJECT_NAME}_alignment_publisher_node
    ${PROJECT_NAME}_gencfg
 #   ${catkin_EXPORTED_TARGETS}
@@ -183,7 +205,7 @@ add_dependencies(${PROJECT_NAME}_alignment_publisher_node
 add_dependencies(${PROJECT_NAME}_icp_align_tool_lib
   ${catkin_EXPORTED_TARGETS}
 )
-
+]]#
 
 #############
 ## Install ##
