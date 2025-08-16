@@ -14,171 +14,187 @@
  * limitations under the License.
  *
  */
-#include <ros/ros.h>
-#include <dynamic_reconfigure/server.h>
-#include <multi_sensor_alignment/alignment_publisherConfig.h>
-
-#include <tf2/transform_datatypes.h>
-#include <tf2/LinearMath/Transform.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
+#include <rcl_interfaces/srv/get_parameters.hpp>
+#include <rcl_interfaces/msg/parameter_event.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+  
 #include <tf2_ros/static_transform_broadcaster.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <sensor_msgs/PointCloud2.h>
+#include <tf2/LinearMath/Quaternion.h>
 
-#include <std_srvs/Empty.h>
-#include <yaml-cpp/yaml.h>
-#include <fstream>
-
-static std::string lidar_id_str_;
-static std::string child_frame_;
-static std::string parent_frame_;
-static std::string alignment_file_;
+//#include <opencv2/core/core.hpp>
+//#include <opencv2/highgui/highgui.hpp>
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <algorithm>
+#include <memory>
+#include <chrono>
+#include <set>
+#include <map>
 
 
-boost::recursive_mutex server_mutex_;
-boost::shared_ptr<dynamic_reconfigure::Server<multi_sensor_alignment::alignment_publisherConfig>> server_;
-multi_sensor_alignment::alignment_publisherConfig pose_, initialPose_;
+
+
+ 
 
 namespace Multi_Sensor_Alignment
 {
-  bool save_params_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp)
-  {
+  class ReconfigurableStaticTransformBroadcaster: public rclcpp::Node{
+  public:
+    ReconfigurableStaticTransformBroadcaster(): Node("simple tf broadcaster"){
+      this->declare_parameter("auto_restart", true);
+      this->declare_parameter("child_frame", "child_lidar");
+      this->declare_parameter("parent_frame", "parent_lidar");
+      this->declare_parameter("auto_restart", true);
+      this->declare_parameter("broadcasting", true);
+      this->declare_parameter(listener_x_param, 0.0);
+      this->declare_parameter(listener_y_param, 0.0);
+      this->declare_parameter(listener_z_param, 0.0);
+      this->declare_parameter(listener_roll_param, 0.0);
+      this->declare_parameter(listener_pitch_param, 1.0);
+      this->declare_parameter(listener_yaw_param, 0.0);
 
-    // build YAML document
-    YAML::Emitter yaml;
-      yaml << YAML::BeginMap;
-      yaml << YAML::Key << "parent_frame" << YAML::Value << parent_frame_;
-      yaml << YAML::Key << "child_frame" << YAML::Value << child_frame_;
-      yaml << YAML::Key << "x" << YAML::Value << pose_.x;
-      yaml << YAML::Key << "y" << YAML::Value << pose_.y;
-      yaml << YAML::Key << "z" << YAML::Value << pose_.z;
-      yaml << YAML::Key << "roll" << YAML::Value << pose_.roll;
-      yaml << YAML::Key << "pitch" << YAML::Value << pose_.pitch;
-      yaml << YAML::Key << "yaw" << YAML::Value << pose_.yaw;
-      yaml << YAML::EndMap;
-
-    // write to file
-    try
-    {
-      std::ofstream fout;
-      fout.open((alignment_file_).c_str());
-      fout << yaml.c_str();
-      fout.close();
+      tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(*this);
+      
+      callback_handle_ = this->add_on_set_parameters_callback(std::bind(&ReconfigurableStaticTransformBroadcaster::parameterCallback,
+                                                                   this,
+                                                                   std::placeholders::_1));
     }
-    catch(...)
+
+    ~ReconfigurableStaticTransformBroadcaster(){} // Empty deconstructor
+
+    void tfRegistration()
     {
-      ROS_ERROR("Cannot save lidar alignment file.");
-      return false;
+      geometry_msgs::msg::TransformStamped transformStamped;
+      transformStamped.header.stamp = this->get_clock()->now();
+      transformStamped.header.frame_id = parent_frame_;
+      transformStamped.child_frame_id = child_frame_;
+      transformStamped.transform.translation.x = x_transform_;
+      transformStamped.transform.translation.y = y_transform_;
+      transformStamped.transform.translation.z = z_transform_;
+      tf2::Quaternion q;
+      q.setRPY(roll_transform_, pitch_transform_, yaw_transform_);
+      transformStamped.transform.rotation.x = q.x();
+      transformStamped.transform.rotation.y = q.y();
+      transformStamped.transform.rotation.z = q.z();
+      transformStamped.transform.rotation.w = q.w();
+      this->tf_static_broadcaster_->sendTransform(transformStamped);
     }
-    
-    return true;
-  }
 
-  void tfRegistration(const ros::Time &timeStamp)
-  {
-    static tf2_ros::StaticTransformBroadcaster broadcaster;
-    geometry_msgs::TransformStamped transformStamped;
+  rcl_interfaces::msg::SetParametersResult parameterCallback(const std::vector<rclcpp::Parameter> &parameters){
+      // NOTE: this only supports static typing if you override with dynamic you will get run time errors for changing types
+      rcl_interfaces::msg::SetParametersResult result;
+      auto element = std::find_if(parameters.begin(), parameters.end(),[&] (const auto &param)
+      {
+        if(param.get_name() == listener_yaw_param)
+        {
+          if(param.as_double() > M_PI/2 || param.as_double() < (-M_PI)/2)
+          {
+            RCLCPP_ERROR(get_logger(),"new pitch value outside of range -pi to pi got %lf",
+                      param.as_double());
+            result.successful = false;
+            result.reason = "invalid parameter type not double";
+          }
+          else
+          {
+            result.successful = true;
+            result.reason = "invalid parameter type not double";
+            yaw_transform_ = param.as_double();
+          }
+        }
+        else if(param.get_name() == listener_pitch_param)
+        {
+          if(param.as_double() > M_PI || param.as_double() < -M_PI)
+          {
+            RCLCPP_ERROR(get_logger(),"new pitch value outside of range -pi to pi got %lf",
+                      param.as_double());
+            result.successful = false;
+            result.reason = "invalid parameter type not double";
+          }
+          else
+          {
+            result.successful = true;
+            result.reason = "invalid parameter type not double";
+            pitch_transform_ = param.as_double();
+          }
+        }
+        else if(param.get_name() == listener_roll_param)
+        {
+          if(param.as_double() > M_PI || param.as_double() < -M_PI)
+          {
+            RCLCPP_ERROR(get_logger(),"new roll value outside of range -pi to pi got %lf",
+                      param.as_double());
+            result.successful = false;
+            result.reason = "parameter_not in roll range";
+          }
+          else
+          {
+            result.successful = true;
+            result.reason = "success";
+            roll_transform_ = param.as_double();
+          }
+        }
+        else if(param.get_name() == listener_x_param)
+        {
+          result.successful = true;
+          result.reason = "success";
+          x_transform_ = param.as_double();
+        }
+        else if(param.get_name() == listener_y_param)
+        {
+          result.successful = true;
+          result.reason = "success";
+          y_transform_ = param.as_double();
+        }
+        else if(param.get_name() == listener_z_param)
+        {
+          result.successful = true;
+          result.reason = "success";
+          z_transform_ = param.as_double();
+        }
+        else
+        {
+          //NOTE: no extra checks for other params as those 
+          result.successful = true;
+          result.reason = "success";
+        }
+        return result.successful == false;
+    });
 
-    transformStamped.header.stamp = timeStamp;
-    transformStamped.header.frame_id = parent_frame_;
-    transformStamped.child_frame_id = child_frame_;
-    transformStamped.transform.translation.x = pose_.x;
-    transformStamped.transform.translation.y = pose_.y;
-    transformStamped.transform.translation.z = pose_.z;
-    tf2::Quaternion q;
-    q.setRPY(pose_.roll, pose_.pitch, pose_.yaw);
-    transformStamped.transform.rotation.x = q.x();
-    transformStamped.transform.rotation.y = q.y();
-    transformStamped.transform.rotation.z = q.z();
-    transformStamped.transform.rotation.w = q.w();
-    
-    ROS_DEBUG("x=%f y=%f z=%f",  transformStamped.transform.translation.x, transformStamped.transform.translation.y, transformStamped.transform.translation.z);
-    broadcaster.sendTransform(transformStamped);
+      if(element == parameters.end()) tfRegistration();
+      return result;
+    }
 
-  }
+  private:
+    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
+    OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 
-  void reconfigure_callback(multi_sensor_alignment::alignment_publisherConfig &config, uint32_t level) 
-  {
-    
-    ROS_INFO("Reconfigure Request: %f %f %f %f %f %f", 
-            config.x, config.y, config.z, config.roll, config.pitch, config.yaw);
+    const std::string listener_x_param = "transform_x";
+    const std::string listener_y_param = "transform_y";
+    const std::string listener_z_param = "transform_z";
+    const std::string listener_roll_param = "transform_roll";
+    const std::string listener_pitch_param = "transform_pitch";
+    const std::string listener_yaw_param = "transform_yaw";
+    const std::string child_frame_param_name = "child_frame";
+    const std::string base_frame_param_name = "parent_frame";
 
-    pose_.x     = config.x;
-    pose_.y     = config.y;
-    pose_.z     = config.z;
-    pose_.roll  = config.roll;
-    pose_.pitch = config.pitch;
-    pose_.yaw   = config.yaw;
+    double x_transform_, y_transform_, z_transform_, roll_transform_, pitch_transform_, yaw_transform_;
 
-    if(parent_frame_ != "" || child_frame_ != "")  tfRegistration(ros::Time(0));
-  }
+    std::string lidar_id_str_;
+    std::string child_frame_;
+    std::string parent_frame_;
 
-  bool revert_callback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp) 
-  {
-    dynamic_reconfigure::Server<multi_sensor_alignment::alignment_publisherConfig> server;
-    
-    server_->updateConfig(initialPose_);
-    reconfigure_callback(initialPose_, 0);
+  };
 
-    return true;
-  }
   
 } // namespace Multi_Sensor_Alignment
 
 int main(int argc, char *argv[])
-  {
-  ros::init(argc, argv, "simple_publisher_node");
-  ros::NodeHandle node;
-  ros::NodeHandle private_nh("~");
-  char __APP_NAME__[] = "sensor_alignment_simple_publisher_node";
-
-  private_nh.param<std::string>("child_frame", child_frame_, "velodyne1");
-  ROS_INFO("[%s] child_frame: '%s'", __APP_NAME__, child_frame_.c_str());
-
-  private_nh.param<std::string>("parent_frame", parent_frame_, "velodyne0");
-  ROS_INFO("[%s] parent_frame: '%s'", __APP_NAME__, parent_frame_.c_str());
-
-  private_nh.param<std::string>("alignment_file", alignment_file_, "joint_state.yaml");
-  ROS_INFO("[%s] alignment_file: '%s'", __APP_NAME__, alignment_file_.c_str());
-
-  private_nh.param<double>("x", pose_.x, 0.0);
-  ROS_INFO("[%s] x: %f", __APP_NAME__, pose_.x);
-
-    private_nh.param<double>("y", pose_.y, 0.0);
-  ROS_INFO("[%s] y: '%f'", __APP_NAME__, pose_.y);
-
-    private_nh.param<double>("z", pose_.z, 0.0);
-  ROS_INFO("[%s] z: '%f'", __APP_NAME__, pose_.z);
-
-    private_nh.param<double>("roll", pose_.roll, 0.0);
-  ROS_INFO("[%s] roll: '%f'", __APP_NAME__, pose_.roll);
-
-    private_nh.param<double>("pitch", pose_.pitch, 0.0);
-  ROS_INFO("[%s] pitch: '%f'", __APP_NAME__, pose_.pitch);
-
-    private_nh.param<double>("yaw", pose_.yaw, 0.0);
-  ROS_INFO("[%s] yaw: '%f'", __APP_NAME__, pose_.yaw);
-
-  initialPose_ = pose_;
-
-  //Setup Dynamic Reconfigure Server for alignCheckConfig
-  dynamic_reconfigure::Server<multi_sensor_alignment::alignment_publisherConfig>::CallbackType
-      serverCallback = boost::bind(&Multi_Sensor_Alignment::reconfigure_callback, _1, _2);
-  server_.reset(new dynamic_reconfigure::Server<multi_sensor_alignment::alignment_publisherConfig>(server_mutex_, private_nh));
-  server_->setCallback(serverCallback);
-
-  std::string save_service_name = ros::this_node::getName() + "/save_joint_state";
-  ros::ServiceServer save_service = node.advertiseService(save_service_name, Multi_Sensor_Alignment::save_params_callback);
-
-  std::string revert_service_name = ros::this_node::getName() + "/revert_joint_state";
-  ros::ServiceServer revert_service = node.advertiseService(revert_service_name, Multi_Sensor_Alignment::revert_callback);
-
-  ros::Duration(0.1).sleep();
-  Multi_Sensor_Alignment::tfRegistration(ros::Time(0));
-
-  ROS_INFO("Spinning node");
-  ros::spin();
-
+{
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<Multi_Sensor_Alignment::ReconfigurableStaticTransformBroadcaster>();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
   return 0;
 }
