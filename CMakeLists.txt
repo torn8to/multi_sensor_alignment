@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.8)
 project(multi_sensor_alignment)
-#TODO:alter for c++17 support
-## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+
+# Use C++17 for better compatibility with modern PCL and ROS 2
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #TODO: setup support for colcon build
 
@@ -23,14 +24,13 @@ find_package(pcl_conversions REQUIRED)
 find_package(cv_bridge REQUIRED)
 #find_package(image_transport REQUIRED)
 
-## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+find_package(PCL REQUIRED)
 find_package(Boost REQUIRED)
 find_package(OpenMP)
 find_package(PCL REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-## Check OpenCV Version
 #set(OpenCV_REQUIRED_VERSION "3.4")
 find_package(OpenCV REQUIRED)
 #if (${OpenCV_VERSION_MAJOR}.${OpenCV_VERSION_MINOR} VERSION_GREATER ${OpenCV_REQUIRED_VERSION} )
@@ -44,32 +44,38 @@ find_package(OpenCV REQUIRED)
 add_executable(${PROJECT_NAME}_alignment_publisher_node
   src/alignment_publisher.cpp
 )
-#add_executable(${PROJECT_NAME}_icp_align_tool_node
-#  src/icp_align_tool_node.cpp
-#)
 
-#include_directories(include
-  #${PCL_INCLUDE_DIRS}
- # ${Boost_INCLUDE_DIRS}
+add_executable(${PROJECT_NAME}_icp_align_tool_node
+  src/icp_align_tool_node.cpp
+)
+
+add_library(${PROJECT_NAME}_icp_align_tool_lib SHARED
+  src/icp_align_tool_class.cpp
+  include/icp_align_tool/icp_align_tool.h
+)
+
+include_directories(
+  include
+  ${PCL_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
  # ${OpenCV_INCLUDE_DIRS}
  #${Eigen3_INCLUDE_DIRS}
-#)
+)
 
+link_directories(${PCL_LIBRARY_DIRS})
 
-#ament_target_dependencies(${PROJECT_NAME}_lib
-# rclcpp
-#  std_msgs
-#  std_srvs
-#  sensor_msgs
-#  geometry_msgs
-#  tf2_ros
-#  tf2_eigen
-#  pcl_conversions
-#  pcl_ros
-#)
+add_definitions(${PCL_DEFINITIONS})
 
-#add_definitions(${PCL_DEFINITIONS})
+target_link_libraries(${PROJECT_NAME}_icp_align_tool_lib
+  ${PCL_LIBRARIES}
+  ${Boost_LIBRARIES}
+)
 
+target_link_libraries(${PROJECT_NAME}_icp_align_tool_node
+  ${PROJECT_NAME}_icp_align_tool_lib
+  ${PCL_LIBRARIES}
+  ${Boost_LIBRARIES}
+)
 
 ament_target_dependencies(
   ${PROJECT_NAME}_alignment_publisher_node
@@ -81,16 +87,47 @@ ament_target_dependencies(
   tf2_geometry_msgs
 )
 
-#set_target_properties(${PROJECT_NAME}_icp_align_tool_node PROPERTIES OUTPUT_NAME icp_align_tool PREFIX "")
-set_target_properties(${PROJECT_NAME}_alignment_publisher_node PROPERTIES OUTPUT_NAME alignment_publisher PREFIX "")
+ament_target_dependencies(${PROJECT_NAME}_icp_align_tool_lib
+  rclcpp
+  std_msgs
+  std_srvs
+  sensor_msgs
+  geometry_msgs
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
+  tf2_sensor_msgs
+  pcl_conversions
+  pcl_ros
+)
 
-#add_library(${PROJECT_NAME}_icp_align_tool_lib SHARED
-#  src/icp_align_tool_class.cpp
-#  include/icp_align_tool/icp_align_tool.h
-#)
+
+ament_target_dependencies(
+  ${PROJECT_NAME}_icp_align_tool_node
+  rclcpp
+  rcl_interfaces
+  geometry_msgs
+  sensor_msgs
+  std_msgs
+  std_srvs
+  tf2_ros
+  tf2
+  tf2_eigen
+  tf2_geometry_msgs
+  tf2_sensor_msgs
+  pcl_conversions
+  pcl_ros
+)
+
+
+#set_target_properties(${PROJECT_NAME}_icp_align_tool_node PROPERTIES OUTPUT_NAME icp_align_tool PREFIX "")
+#set_target_properties(${PROJECT_NAME}_alignment_publisher_node PROPERTIES OUTPUT_NAME alignment_publisher PREFIX "")
+
 
 install(TARGETS
   ${PROJECT_NAME}_alignment_publisher_node
+  ${PROJECT_NAME}_icp_align_tool_lib
+  ${PROJECT_NAME}_icp_align_tool_node
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY ./config

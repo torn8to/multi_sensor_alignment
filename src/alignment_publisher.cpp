@@ -57,7 +57,7 @@ namespace Multi_Sensor_Alignment
 
       tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(*this);
       
-      callback_handle_ = this->add_on_set_parameters_callback(std::bind(&ReconfigurableStaticTransformBroadcaster::parameterCallback,
+      callback_handle_ = this->add_on_set_parameters_callback(std::bind(&ReconfigurableStaticTransformBroadcaster::parameterSubscriptionCallback,
                                                                    this,
                                                                    std::placeholders::_1));
     }
@@ -82,7 +82,7 @@ namespace Multi_Sensor_Alignment
       this->tf_static_broadcaster_->sendTransform(transformStamped);
     }
 
-  rcl_interfaces::msg::SetParametersResult parameterCallback(const std::vector<rclcpp::Parameter> &parameters){
+  rcl_interfaces::msg::SetParametersResult parameterSubscriptionCallback(const std::vector<rclcpp::Parameter> &parameters){
       // NOTE: this only supports static typing if you override with dynamic you will get run time errors for changing types
       rcl_interfaces::msg::SetParametersResult result;
       auto element = std::find_if(parameters.begin(), parameters.end(),[&] (const auto &param)
