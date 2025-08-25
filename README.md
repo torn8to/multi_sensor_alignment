@@ -120,9 +120,9 @@ Updating this package was not done by the main authors of the ros1 version, and 
 Saving the new transform  can be done normally as the `ros2 param dump > alignment_publisher_params.yaml` you can then launch the reconfigurable broadcaster passing in this yaml file to set the parameters.  This allows you to save the configuration and boot the alignment publisher node with the config from the yaml file.
 
 The functionality for updating services via the command line is done the same way  but servces work a bit differently but is done below for the revert service.
+
 ```
 ros2 service call /revert std_srvs/srv/Empty {}
-
 ```
 
 
