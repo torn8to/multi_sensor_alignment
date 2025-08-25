@@ -114,6 +114,15 @@ This node can also be used effectively to align a single lidar with the robot, b
 
 ## Changelog
 
-- 
+## ros2 changes
+Updating this package was not done by the main authors of the ros1 version, and was done to align 2 lidars one built in to a robot chassis and one added to a payload expanding sensing capability of the go2 quadraped, with the new updates comes quite a few changes the biggest being the removal of dynamic_reconfigure as it is no longer supported in ros2. Now nodes and the CLI have built in functionality that replace the package for our use case.  The biggest component being the builitin interfaces and tooling around parameters have functionality built in to suit the use case case. In the client libraries the biggest carrier is the the `SyncParameterClient` provides an interface that allows us to interact with other nodes. This with create of a set parameters callback enables us to update the StaticTransformBroadCaster when its parameters change.  We do not use the built in functionality of the parameter client to update the transform of the alignment publisher and instead use reading the transform to update the icp publisher alignment instead of the parameter client. 
+
+Saving the new transform  can be done normally as the `ros2 param dump > alignment_publisher_params.yaml` you can then launch the reconfigurable broadcaster passing in this yaml file to set the parameters.  This allows you to save the configuration and boot the alignment publisher node with the config from the yaml file.
+
+The functionality for updating services via the command line is done the same way  but servces work a bit differently but is done below for the revert service.
+```
+ros2 service call /revert std_srvs/srv/Empty {}
+
+```
 
 
